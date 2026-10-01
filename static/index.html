@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>消防通道临停管控</title>
+<link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+
+<!-- 登录页 -->
+<section id="login-view" class="login-view" hidden>
+  <div class="login-card">
+    <div class="login-brand">
+      <span class="exit-emblem" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="34" height="34"><path fill="#fff" d="M13 2l8 4v6c0 5-3.4 8.6-8 10-4.6-1.4-8-5-8-10V6l8-4z"/><path fill="#0ca30c" d="M10.6 17l4.2-5.6-2.1-.06.9-4.34-4.2 5.66 2.15.06-.85 4.34z"/></svg>
+      </span>
+      <div>
+        <h1>消防通道临停管控</h1>
+        <p>生命通道 · 发现即报 · 处置留痕 · 异员复核</p>
+      </div>
+    </div>
+    <form id="login-form" class="login-form">
+      <label>账号<input name="username" autocomplete="username" required placeholder="如 guard1"></label>
+      <label>密码<input name="password" type="password" autocomplete="current-password" required placeholder="123456"></label>
+      <button type="submit" class="btn btn-primary btn-block">登 录</button>
+      <p id="login-error" class="form-error" hidden></p>
+    </form>
+    <div class="demo-accounts">
+      <p class="demo-title">演示账号（密码均为 <code>123456</code>），点击快速填充：</p>
+      <div class="demo-grid">
+        <button type="button" data-u="sup"><b>sup</b><span>值班负责人 · 全小区 / 升级拖移审批</span></button>
+        <button type="button" data-u="guard1"><b>guard1</b><span>1号楼保安 · 王强</span></button>
+        <button type="button" data-u="guard2"><b>guard2</b><span>1号楼保安 · 陈静（复核用）</span></button>
+        <button type="button" data-u="guard3"><b>guard3</b><span>2号楼保安 · 赵虎</span></button>
+        <button type="button" data-u="zhang"><b>zhang</b><span>1号楼住户 · 京A·12345 / 京A·66666</span></button>
+        <button type="button" data-u="li"><b>li</b><span>2号楼住户 · 京B·88888</span></button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 主应用 -->
+<div id="app" hidden>
+  <header class="topbar">
+    <div class="topbar-title">
+      <span class="exit-emblem sm" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="20" height="20"><path fill="#fff" d="M13 2l8 4v6c0 5-3.4 8.6-8 10-4.6-1.4-8-5-8-10V6l8-4z"/><path fill="#0ca30c" d="M10.6 17l4.2-5.6-2.1-.06.9-4.34-4.2 5.66 2.15.06-.85 4.34z"/></svg>
+      </span>
+      <strong>消防通道临停管控</strong>
+    </div>
+    <div class="topbar-user">
+      <span id="user-badge" class="user-badge"></span>
+      <button id="logout-btn" class="btn btn-ghost btn-sm">退出</button>
+    </div>
+  </header>
+
+  <nav class="tabs" id="tabs">
+    <button data-tab="map" class="tab active">🗺️ 通道平面图</button>
+    <button data-tab="events" class="tab">📋 事件<span id="tab-events-dot" class="tab-dot" hidden></span></button>
+    <button data-tab="review" class="tab staff-only">🧹 清障复核<span id="tab-review-dot" class="tab-dot" hidden></span></button>
+    <button data-tab="stats" class="tab staff-only">📊 统计</button>
+    <button data-tab="sim" class="tab staff-only">🎛️ 模拟控制台</button>
+  </nav>
+
+  <main class="content">
+    <!-- 平面图 -->
+    <section id="view-map" class="view">
+      <div class="map-toolbar">
+        <div class="legend">
+          <span><i class="lg lg-exit"></i>消防出入口（视觉锚点）</span>
+          <span><i class="lg lg-ok"></i>通道畅通</span>
+          <span><i class="lg lg-block"></i>正在阻断</span>
+          <span class="legend-muted"><i class="lg lg-history"></i>历史事件为中性灰</span>
+        </div>
+        <button id="report-open-btn" class="btn btn-danger report-btn staff-only">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M9 3l-1 2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-4l-1-2H9zm3 5a5 5 0 1 1 0 10 5 5 0 0 1 0-10zm0 2a3 3 0 1 0 0 6 3 3 0 0 0 0-6z"/></svg>
+          <span>拍照上报</span>
+        </button>
+      </div>
+      <div class="map-card">
+        <svg id="map-svg" viewBox="0 0 1000 640" preserveAspectRatio="xMidYMid meet" role="img"
+             aria-label="小区消防通道总平面图，以消防出入口为锚点"></svg>
+      </div>
+      <div id="map-active-list" class="map-active-list"></div>
+    </section>
+
+    <!-- 事件列表 -->
+    <section id="view-events" class="view" hidden>
+      <div class="list-head">
+        <h2 id="events-title">事件</h2>
+        <input id="event-search" class="input" placeholder="按车牌 / 通道筛选" />
+      </div>
+      <div id="event-list" class="card-grid"></div>
+    </section>
+
+    <!-- 清障复核 -->
+    <section id="view-review" class="view" hidden>
+      <h2>清障复核</h2>
+      <p class="section-hint">车辆驶离/拖离后，由<strong>另一名保安</strong>（不得是实际处置人）现场核对通道恢复并拍照结案。</p>
+      <div id="review-list" class="card-grid"></div>
+    </section>
+
+    <!-- 统计 -->
+    <section id="view-stats" class="view" hidden>
+      <h2>统计</h2>
+      <div id="stats-tiles" class="stat-tiles"></div>
+      <div class="chart-row">
+        <div class="chart-card">
+          <h3>各楼栋事件分布</h3>
+          <div id="chart-building" class="chart"></div>
+          <table class="data-table" id="table-building"></table>
+        </div>
+        <div class="chart-card">
+          <h3>处置概况</h3>
+          <div id="stats-extra"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 模拟控制台 -->
+    <section id="view-sim" class="view" hidden>
+      <h2>模拟控制台</h2>
+      <p class="section-hint">短信网关与车牌识别均为可控模拟，用于演示“联系失败”“车牌识别错误”等留痕场景。</p>
+      <div class="sim-grid">
+        <div class="sim-card">
+          <h3>短信网关</h3>
+          <p>当前模式：<b id="sms-mode-label">—</b></p>
+          <div class="btn-row">
+            <button class="btn btn-primary" id="sms-normal">正常送达</button>
+            <button class="btn btn-ghost" id="sms-fail">模拟发送失败</button>
+          </div>
+        </div>
+        <div class="sim-card">
+          <h3>车牌识别（LPR）</h3>
+          <p>注入“下一次识别”结果（留空则恢复随机模拟）：</p>
+          <div class="btn-row">
+            <input id="lpr-input" class="input" placeholder="如 京A1234O（易误识为O）">
+            <button class="btn btn-primary" id="lpr-set">注入</button>
+            <button class="btn btn-ghost" id="lpr-clear">清除</button>
+          </div>
+        </div>
+        <div class="sim-card sim-outbox">
+          <h3>短信发件箱（最近）</h3>
+          <div id="sms-outbox"></div>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<!-- 上报抽屉 -->
+<div id="report-sheet" class="sheet-mask" hidden>
+  <div class="sheet" role="dialog" aria-label="拍照上报">
+    <div class="sheet-head">
+      <h3>拍照上报 · 消防通道临停</h3>
+      <button class="icon-btn" data-close-sheet>✕</button>
+    </div>
+    <form id="report-form" class="sheet-body">
+      <label>占用区域（消防通道）
+        <select name="channel_id" id="report-channel" required></select>
+      </label>
+      <label>车牌
+        <div class="plate-row">
+          <input name="plate_display" id="report-plate" class="input" required placeholder="如 京A·12345">
+          <button type="button" id="lpr-btn" class="btn btn-outline">📷 模拟识别</button>
+        </div>
+      </label>
+      <div class="photo-take">
+        <label class="photo-take-label">
+          <input type="file" id="report-photo-input" accept="image/*" capture="environment" hidden>
+          <span class="photo-take-btn">
+            <svg viewBox="0 0 24 24" width="26" height="26" fill="currentColor"><path d="M9 3l-1 2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-4l-1-2H9zm3 5a5 5 0 1 1 0 10 5 5 0 0 1 0-10zm0 2a3 3 0 1 0 0 6 3 3 0 0 0 0-6z"/></svg>
+            <b>拍照 / 选择现场照片</b>
+            <small>手机将直接调起摄像头</small>
+          </span>
+        </label>
+        <img id="report-photo-preview" class="photo-preview" alt="现场照片预览" hidden>
+      </div>
+      <label class="check-line">
+        <input type="checkbox" name="kind" value="emergency"> 紧急救援占道（消防车/救护车等）
+      </label>
+      <label>备注（可选）<textarea name="note" rows="2" placeholder="如：车头无挪车电话"></textarea></label>
+      <p id="report-hint" class="form-hint"></p>
+      <div class="sheet-foot">
+        <button type="button" class="btn btn-ghost" data-close-sheet>取消</button>
+        <button type="submit" class="btn btn-primary">提交上报</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- 事件详情抽屉 -->
+<div id="detail-sheet" class="sheet-mask" hidden>
+  <div class="sheet sheet-lg" role="dialog" aria-label="事件详情">
+    <div class="sheet-head">
+      <h3 id="detail-title">事件详情</h3>
+      <button class="icon-btn" data-close-sheet>✕</button>
+    </div>
+    <div class="sheet-body" id="detail-body"></div>
+  </div>
+</div>
+
+<!-- 升级拖移确认框（值班负责人二次确认） -->
+<div id="confirm-mask" class="sheet-mask" hidden>
+  <div class="modal" role="dialog" aria-label="操作确认">
+    <h3 id="confirm-title">确认操作</h3>
+    <p id="confirm-text"></p>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" id="confirm-cancel">取消</button>
+      <button class="btn btn-danger" id="confirm-ok">确认</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="toast" hidden></div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>
