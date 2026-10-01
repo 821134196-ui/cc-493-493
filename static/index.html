@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>消防通道临停占道管理</title>
+<link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+
+<!-- 登录 -->
+<div id="login-view" class="login-wrap hidden">
+  <form id="login-form" class="login-card">
+    <div class="login-logo">🚒</div>
+    <h1>消防通道临停占道管理</h1>
+    <p class="muted">消防通道 = 生命通道 · 占道即处置</p>
+    <label>账号<input name="username" autocomplete="username" required placeholder="guard1 / resident1 / admin"></label>
+    <label>密码<input name="password" type="password" autocomplete="current-password" required placeholder="guard123"></label>
+    <button class="btn primary block" type="submit">登 录</button>
+    <div id="login-error" class="error-text"></div>
+    <details class="demo-accounts">
+      <summary>演示账号</summary>
+      <table>
+        <tr><td>admin / admin123</td><td>值班负责人(全楼,升级拖移审批)</td></tr>
+        <tr><td>guard1 / guard123</td><td>1栋保安</td></tr>
+        <tr><td>guard4 / guard123</td><td>1栋另一保安(复核人分离演示)</td></tr>
+        <tr><td>guard2 / guard123</td><td>2栋保安</td></tr>
+        <tr><td>guard3 / guard123</td><td>3栋保安</td></tr>
+        <tr><td>resident1 / resident123</td><td>1栋住户(车牌 京A12345 等)</td></tr>
+      </table>
+    </details>
+  </form>
+</div>
+
+<!-- 主应用 -->
+<div id="app-view" class="hidden">
+  <header class="topbar">
+    <div class="brand">🚒 消防通道监管</div>
+    <nav class="tabs" id="tabs">
+      <button data-tab="map" class="tab active">通道平面图</button>
+      <button data-tab="events" class="tab">事件处置</button>
+      <button data-tab="review" class="tab" id="tab-review">清障复核<span id="review-badge" class="badge hidden">0</span></button>
+      <button data-tab="notifications" class="tab" id="tab-notif">我的通知<span id="notif-badge" class="badge hidden">0</span></button>
+      <button data-tab="stats" class="tab" id="tab-stats">统计</button>
+      <button data-tab="sim" class="tab hidden" id="tab-sim">模拟控制</button>
+    </nav>
+    <div class="user-box">
+      <span id="user-label" class="user-label"></span>
+      <button id="logout-btn" class="btn ghost small">退出</button>
+    </div>
+  </header>
+
+  <main class="content">
+    <!-- 地图 -->
+    <section id="tab-map" class="tab-panel">
+      <div class="panel-head">
+        <div>
+          <h2>小区消防通道平面图</h2>
+          <p class="muted">以消防出入口为视觉锚点。<span class="dot red-dot"></span> 红色仅表示通道正在被阻断;
+          待复核与历史事件不使用红色。</p>
+        </div>
+        <div class="legend">
+          <span><i class="swatch anchor"></i>消防出入口</span>
+          <span><i class="swatch lane"></i>消防车道</span>
+          <span><i class="dot" style="background:#d03b3b"></i>正在阻断</span>
+          <span><i class="dot" style="background:#898781"></i>通道正常</span>
+        </div>
+      </div>
+      <div class="map-card">
+        <svg id="map-svg" viewBox="0 0 1000 640" preserveAspectRatio="xMidYMid meet" role="img"
+             aria-label="小区消防通道平面图,标注各楼栋消防出入口与实时占道事件"></svg>
+      </div>
+    </section>
+
+    <!-- 事件列表 -->
+    <section id="tab-events" class="tab-panel hidden">
+      <div class="panel-head">
+        <div><h2>占道事件</h2><p class="muted" id="events-scope-hint"></p></div>
+        <div class="filters" id="event-filters">
+          <select id="filter-status"><option value="">全部状态</option></select>
+        </div>
+      </div>
+      <div id="event-list" class="event-grid"></div>
+    </section>
+
+    <!-- 清障复核 -->
+    <section id="tab-review" class="tab-panel hidden">
+      <div class="panel-head">
+        <div><h2>清障复核</h2>
+        <p class="muted">车辆驶离后,<strong>必须由登记驶离之外的另一名保安</strong>现场确认通道恢复方可结案。</p></div>
+      </div>
+      <div id="review-list" class="event-grid"></div>
+    </section>
+
+    <!-- 通知 -->
+    <section id="tab-notifications" class="tab-panel hidden">
+      <div class="panel-head"><div><h2>与我车辆有关的通知</h2>
+        <p class="muted">仅展示登记在您名下车辆的占道、联系、升级与结案通知。封闭事件不可由住户改写。</p></div></div>
+      <div id="notif-list" class="notif-list"></div>
+    </section>
+
+    <!-- 统计 -->
+    <section id="tab-stats" class="tab-panel hidden">
+      <div class="panel-head">
+        <div><h2>处置统计</h2><p class="muted">最近 <select id="stats-days"><option>7</option><option selected>30</option><option>90</option></select> 天</p></div>
+      </div>
+      <div id="stats-tiles" class="stat-tiles"></div>
+      <div class="chart-row">
+        <div class="chart-card"><h3>每日占道事件</h3><div id="chart-daily" class="chart-body"></div></div>
+        <div class="chart-card"><h3>按楼栋分布</h3><div id="chart-building" class="chart-body"></div></div>
+      </div>
+      <div class="chart-row">
+        <div class="chart-card"><h3>处置结果构成</h3><div id="chart-outcomes" class="chart-body"></div></div>
+        <div class="chart-card"><h3>关键指标</h3><div id="chart-misc" class="chart-body"></div></div>
+      </div>
+    </section>
+
+    <!-- 模拟控制 -->
+    <section id="tab-sim" class="tab-panel hidden">
+      <div class="panel-head"><div><h2>可控模拟(短信 / 车牌识别)</h2>
+        <p class="muted">演示环境使用。可让识别器故意认错车牌、让短信网关整体失败或指定号码失败,失败均留痕。</p></div></div>
+      <div class="sim-card">
+        <div class="sim-row">
+          <span>车牌识别器</span>
+          <label class="switch"><input type="radio" name="lpr" value="normal"> 正常识别</label>
+          <label class="switch"><input type="radio" name="lpr" value="error"> 故意认错一位</label>
+        </div>
+        <div class="sim-row">
+          <span>短信网关</span>
+          <label class="switch"><input type="radio" name="sms" value="normal"> 正常投递</label>
+          <label class="switch"><input type="radio" name="sms" value="down"> 网关故障</label>
+        </div>
+        <div class="sim-row">
+          <span>指定失败号码</span>
+          <input id="sim-fail-phone" placeholder="如 13700000002,回车添加">
+          <div id="sim-fail-tags" class="tags"></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- 手机端醒目的拍照上报浮动按钮 -->
+  <button id="report-fab" class="fab" title="拍照上报占道车辆">
+    <span class="fab-cam">📷</span><span class="fab-text">拍照上报</span>
+  </button>
+</div>
+
+<!-- 上报弹窗 -->
+<div id="report-modal" class="modal-mask hidden">
+  <div class="modal wide">
+    <div class="modal-head"><h3>上报消防通道占道车辆</h3><button class="close" data-close>×</button></div>
+    <form id="report-form" class="modal-body">
+      <label>占用区域
+        <select name="zone_id" required></select>
+      </label>
+      <div class="plate-row">
+        <label class="grow">车牌
+          <input name="plate" required placeholder="如 京A12345" pattern="^[京津沪渝冀豫云辽黑湘皖鲁新苏浙赣鄂桂甘晋蒙陕吉闽贵粤川青藏琼宁使][A-Z][0-9A-Z]{5,6}$">
+        </label>
+        <button type="button" id="lpr-btn" class="btn ghost">📷 模拟车牌识别</button>
+      </div>
+      <div id="lpr-hint" class="hint hidden"></div>
+      <label class="check"><input type="checkbox" name="is_emergency"> 紧急救援(120/119)临时占道 — 单独留痕</label>
+      <label>现场照片(手机端将直接调起相机)
+        <input type="file" id="report-photo" accept="image/*" capture="environment">
+      </label>
+      <div id="report-preview" class="photo-preview hidden"><img alt="现场照片预览"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn ghost" data-close>取消</button>
+        <button type="submit" class="btn primary">提交上报</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- 事件详情弹窗 -->
+<div id="event-modal" class="modal-mask hidden">
+  <div class="modal wide">
+    <div class="modal-head">
+      <h3 id="ev-title">事件详情</h3>
+      <button class="close" data-close>×</button>
+    </div>
+    <div class="modal-body" id="event-detail"></div>
+  </div>
+</div>
+
+<div id="toast" class="toast hidden"></div>
+
+<script src="/app.js"></script>
+</body>
+</html>
